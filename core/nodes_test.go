@@ -602,7 +602,7 @@ func TestParseNodeProxyDoesNotReplaceLiveDNSClient(t *testing.T) {
 	})
 	query := new(D.Msg)
 	query.SetQuestion("host.example.", D.TypeA)
-	_, err = resolvers.Main.ExchangeContext(context.Background(), query)
+	_, err = resolvers.ExchangeContext(context.Background(), query)
 	if err != nil && strings.Contains(err.Error(), "does not provide EasyTier DNS") {
 		t.Errorf("closing a validation instance removed the live node's DNS client: %v", err)
 	}
