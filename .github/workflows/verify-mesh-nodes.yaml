@@ -1,0 +1,48 @@
+name: verify-mesh-nodes
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.x'
+          cache-dependency-path: core/go.sum
+      - name: gofmt
+        working-directory: core
+        run: test -z "$(gofmt -l nodes.go nodes_test.go)"
+      - name: Node patch and parse tests
+        working-directory: core
+        run: go test -tags with_gvisor -run 'Nodes|NodeProxy' -count=1 -v .
+
+  dart:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.50.1'
+          cache: true
+      - run: flutter pub get
+      - run: dart run build_runner build
+      - name: Analyze changed files
+        run: >
+          flutter analyze
+          lib/models/node.dart
+          lib/common/mesh_template.dart
+          lib/views/profiles/nodes.dart
+          lib/views/profiles/edit_node.dart
+      - name: Mesh node tests
+        run: flutter test test/models/mesh_node_test.dart
+      - name: Generated localizations are in sync
+        run: |
+          dart run intl_utils:generate
+          git diff --exit-code -- lib/l10n
