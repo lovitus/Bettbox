@@ -1,0 +1,79 @@
+name: PR 662 Android Standard
+on:
+  push:
+    branches: [pr662-android-ce8e215]
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    env:
+      SENTRY_BACKEND: none
+      GRADLE_OPTS: -Dorg.gradle.vfs.watch=false
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+      - name: Setup Rust (Android)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android
+
+      - name: Setup Java (Android)
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: 'gradle'
+
+      - name: Setup Android NDK
+        shell: bash
+        run: |
+          NDK_VERSION="28.2.13676358"
+          yes | "${ANDROID_SDK_ROOT}/cmdline-tools/latest/bin/sdkmanager" --install "ndk;${NDK_VERSION}" >/dev/null 2>&1 || true
+          echo "ANDROID_NDK=${ANDROID_SDK_ROOT}/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - name: Configure Cargo for Android
+        shell: bash
+        run: |
+          mkdir -p ~/.cargo
+          cat > ~/.cargo/config.toml <<EOF
+          [target.aarch64-linux-android]
+          linker = "${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang"
+          [target.armv7-linux-androideabi]
+          linker = "${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi26-clang"
+          [target.x86_64-linux-android]
+          linker = "${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android26-clang"
+          [target.i686-linux-android]
+          linker = "${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/i686-linux-android26-clang"
+          EOF
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.x'
+          cache-dependency-path: core/go.sum
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.50.1'
+          cache: true
+      - name: Build Standard APK for arm64
+        run: |
+          flutter pub get
+          dart run build_runner build
+          dart setup.dart android --arch arm64 --standard
+      - name: Verify package identity and signature
+        shell: bash
+        run: |
+          apk=(dist/*.apk)
+          test "${#apk[@]}" = 1
+          tools=$(ls -dv "$ANDROID_HOME"/build-tools/* | tail -1)
+          "$tools/aapt" dump badging "${apk[0]}" > "$RUNNER_TEMP/apk-badging"
+          grep -F "package: name='com.appshub.bettbox.pr662'" "$RUNNER_TEMP/apk-badging"
+          "$tools/apksigner" verify "${apk[0]}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Bettbox-PR662-Standard-arm64.apk
+          path: dist/*.apk
+          archive: false
+          if-no-files-found: error
