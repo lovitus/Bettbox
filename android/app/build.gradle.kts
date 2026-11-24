@@ -25,11 +25,13 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    val testVersionCode = providers.environmentVariable("PR662_VERSION_CODE").orNull?.toInt() ?: flutter.versionCode
+
     defaultConfig {
         applicationId = "com.appshub.bettbox.pr662.review"
         minSdk = 24
         targetSdk = 36
-        versionCode = flutter.versionCode
+        versionCode = testVersionCode
         versionName = flutter.versionName
     }
 
@@ -65,7 +67,7 @@ android {
 
     applicationVariants.all {
         outputs.all {
-            (this as? com.android.build.gradle.internal.api.ApkVariantOutputImpl)?.versionCodeOverride = flutter.versionCode
+            (this as? com.android.build.gradle.internal.api.ApkVariantOutputImpl)?.versionCodeOverride = testVersionCode
         }
     }
 }

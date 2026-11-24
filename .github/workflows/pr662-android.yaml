@@ -59,18 +59,35 @@ jobs:
           cache: true
       - name: Build Standard APK for arm64
         run: |
+          export PR662_VERSION_CODE=$((2026112301 + GITHUB_RUN_NUMBER))
           flutter pub get
           dart run build_runner build
           dart setup.dart android --arch arm64 --standard
-      - name: Verify package identity and signature
+      - name: Sign and verify the test APK
         shell: bash
+        env:
+          SIGNING_BUNDLE: ${{ secrets.PR662_ANDROID_SIGNING }}
         run: |
+          set -euo pipefail
+          umask 077
           apk=(dist/*.apk)
           test "${#apk[@]}" = 1
           tools=$(ls -dv "$ANDROID_HOME"/build-tools/* | tail -1)
+          expected_code=$((2026112301 + GITHUB_RUN_NUMBER))
           "$tools/aapt" dump badging "${apk[0]}" > "$RUNNER_TEMP/apk-badging"
-          grep -F "package: name='com.appshub.bettbox.pr662.review'" "$RUNNER_TEMP/apk-badging"
-          "$tools/apksigner" verify "${apk[0]}"
+          grep -F "package: name='com.appshub.bettbox.pr662.review' versionCode='$expected_code'" "$RUNNER_TEMP/apk-badging"
+
+          signing_dir=$(mktemp -d "$RUNNER_TEMP/pr662-sign.XXXXXXXX")
+          trap 'rm -rf -- "$signing_dir"' EXIT
+          jq -er .pkcs12 <<<"$SIGNING_BUNDLE" | base64 --decode > "$signing_dir/test.p12"
+          SIGNING_PASSWORD=$(jq -er .password <<<"$SIGNING_BUNDLE")
+          export SIGNING_PASSWORD
+          unset SIGNING_BUNDLE
+          "$tools/apksigner" sign --ks "$signing_dir/test.p12" --ks-type PKCS12 --ks-key-alias test             --ks-pass env:SIGNING_PASSWORD --key-pass env:SIGNING_PASSWORD --v4-signing-enabled false             --out "$signing_dir/signed.apk" "${apk[0]}"
+          "$tools/apksigner" verify --print-certs "$signing_dir/signed.apk" > "$signing_dir/certificates"
+          digest=$(sed -n 's/^Signer #[0-9]* certificate SHA-256 digest: //p' "$signing_dir/certificates")
+          test "$digest" = '9c678ed6d30df7236f2f6cca33aa731607659629c137b0e7c2721edf762a5077'
+          mv -- "$signing_dir/signed.apk" "${apk[0]}"
       - uses: actions/upload-artifact@v7
         with:
           name: Bettbox-PR662-Standard-arm64.apk
