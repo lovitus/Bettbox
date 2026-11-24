@@ -57,9 +57,10 @@ jobs:
           channel: stable
           flutter-version: '3.50.1'
           cache: true
+      - name: Set test update version
+        run: echo "PR662_VERSION_CODE=$((2026112301 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
       - name: Build Standard APK for arm64
         run: |
-          export PR662_VERSION_CODE=$((2026112301 + GITHUB_RUN_NUMBER))
           flutter pub get
           dart run build_runner build
           dart setup.dart android --arch arm64 --standard
@@ -76,9 +77,8 @@ jobs:
           if [[ ! -x "$tools/apksigner" ]]; then
             "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0"
           fi
-          expected_code=$((2026112301 + GITHUB_RUN_NUMBER))
           "$tools/aapt" dump badging "${apk[0]}" > "$RUNNER_TEMP/apk-badging"
-          grep -F "package: name='com.appshub.bettbox.pr662.review' versionCode='$expected_code'" "$RUNNER_TEMP/apk-badging"
+          grep -F "package: name='com.appshub.bettbox.pr662.review' versionCode='$PR662_VERSION_CODE'" "$RUNNER_TEMP/apk-badging"
 
           signing_dir=$(mktemp -d "$RUNNER_TEMP/pr662-sign.XXXXXXXX")
           trap 'rm -rf -- "$signing_dir"' EXIT
