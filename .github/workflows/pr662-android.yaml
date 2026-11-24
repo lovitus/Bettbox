@@ -69,7 +69,7 @@ jobs:
           test "${#apk[@]}" = 1
           tools=$(ls -dv "$ANDROID_HOME"/build-tools/* | tail -1)
           "$tools/aapt" dump badging "${apk[0]}" > "$RUNNER_TEMP/apk-badging"
-          grep -F "package: name='com.appshub.bettbox.pr662'" "$RUNNER_TEMP/apk-badging"
+          grep -F "package: name='com.appshub.bettbox.pr662.review'" "$RUNNER_TEMP/apk-badging"
           "$tools/apksigner" verify "${apk[0]}"
       - uses: actions/upload-artifact@v7
         with:
