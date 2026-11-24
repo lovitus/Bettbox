@@ -72,7 +72,10 @@ jobs:
           umask 077
           apk=(dist/*.apk)
           test "${#apk[@]}" = 1
-          tools=$(ls -dv "$ANDROID_HOME"/build-tools/* | tail -1)
+          tools="$ANDROID_HOME/build-tools/36.0.0"
+          if [[ ! -x "$tools/apksigner" ]]; then
+            "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0"
+          fi
           expected_code=$((2026112301 + GITHUB_RUN_NUMBER))
           "$tools/aapt" dump badging "${apk[0]}" > "$RUNNER_TEMP/apk-badging"
           grep -F "package: name='com.appshub.bettbox.pr662.review' versionCode='$expected_code'" "$RUNNER_TEMP/apk-badging"
@@ -86,7 +89,7 @@ jobs:
           "$tools/apksigner" sign --ks "$signing_dir/test.p12" --ks-type PKCS12 --ks-key-alias test \
             --ks-pass env:SIGNING_PASSWORD --key-pass env:SIGNING_PASSWORD --v4-signing-enabled false \
             --out "$signing_dir/signed.apk" "${apk[0]}"
-          "$tools/apksigner" verify --print-certs "$signing_dir/signed.apk" > "$signing_dir/certificates"
+          "$tools/apksigner" verify --print-certs "$signing_dir/signed.apk" | tee "$signing_dir/certificates"
           digest=$(sed -n 's/^Signer #[0-9]* certificate SHA-256 digest: //p' "$signing_dir/certificates")
           # Keep this certificate and the application ID stable across test updates.
           test "$digest" = '9c678ed6d30df7236f2f6cca33aa731607659629c137b0e7c2721edf762a5077'
