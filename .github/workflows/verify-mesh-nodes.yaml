@@ -45,6 +45,10 @@ jobs:
           lib/common/mesh_template.dart
           lib/views/profiles/nodes.dart
           lib/pages/editor.dart
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build the editor native library
+        working-directory: plugins/code_forge/rust
+        run: cargo build --release
       - name: Mesh node and editor tests
         run: flutter test test/models/mesh_node_test.dart test/pages/editor_save_test.dart
       - name: Generated localizations are in sync
