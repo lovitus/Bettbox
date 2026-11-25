@@ -1,0 +1,51 @@
+name: verify-mesh-nodes
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.25.x'
+          cache-dependency-path: core/go.sum
+      - name: gofmt
+        working-directory: core
+        run: test -z "$(gofmt -l nodes.go nodes_easytier_test.go nodes_mesh_templates_test.go nodes_test.go Clash.Meta/adapter/parser.go Clash.Meta/dns/export_test.go Clash.Meta/dns/easytier_adapter_test.go)"
+      - name: Node, template and DNS tests
+        working-directory: core
+        run: go test -tags with_gvisor -run 'Nodes|NodeProxy|MeshTemplates' -count=1 -v .
+      - name: Core DNS adapter test
+        working-directory: core/Clash.Meta
+        run: go test -tags with_gvisor -run 'TestParseProxyUnregistersEasyTierDNSOnMuxError' -count=1 -v ./dns/
+
+  dart:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.50.1'
+          cache: true
+      - run: flutter pub get
+      - run: dart run build_runner build
+      - name: Analyze changed Dart files
+        run: >
+          flutter analyze
+          lib/models/node.dart
+          lib/common/mesh_template.dart
+          lib/views/profiles/nodes.dart
+          lib/pages/editor.dart
+      - name: Mesh node and editor tests
+        run: flutter test test/models/mesh_node_test.dart test/pages/editor_save_test.dart
+      - name: Generated localizations are in sync
+        run: |
+          dart run intl_utils:generate
+          git diff --exit-code -- lib/l10n
